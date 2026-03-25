@@ -20,15 +20,16 @@ export interface AiSettings {
 
 // Available models for each provider
 export const CLAUDE_MODELS = [
-  { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
-  { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
-  { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' },
+  { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
+  { value: 'claude-opus-4-20250514', label: 'Claude Opus 4' },
+  { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
 ] as const
 
 export const OPENAI_MODELS = [
-  { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-  { value: 'gpt-4', label: 'GPT-4' },
-  { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+  { value: 'gpt-5.4', label: 'GPT-5.4' },
+  { value: 'gpt-4.1', label: 'GPT-4.1' },
+  { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+  { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
 ] as const
 
 // System prompt for page generation
@@ -49,10 +50,7 @@ Output format:
 - Wrap code in \`\`\`html and \`\`\`
 - Do not include markdown explanation text`
 
-export function validateApiKey(apiKey: string): { valid: boolean; error?: string } {
-  if (!apiKey || apiKey.trim().length === 0) {
-    return { valid: false, error: 'API key cannot be empty' }
-  }
+export function validateApiKey(_apiKey: string): { valid: boolean; error?: string } {
   return { valid: true }
 }
 

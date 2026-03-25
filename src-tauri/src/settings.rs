@@ -17,7 +17,7 @@ impl Default for AppSettings {
         Self {
             api_provider: "claude".to_string(),
             api_key: String::new(),
-            model: "claude-3-5-sonnet-20241022".to_string(),
+            model: "claude-sonnet-4-20250514".to_string(),
             theme: "system".to_string(),
             default_export_path: None,
         }

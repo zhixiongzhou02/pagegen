@@ -1,3 +1,4 @@
+use crate::ai_service::{AiService, ApiProvider};
 use crate::error::Result;
 use crate::file_storage::FileStorage;
 use crate::models::{CreateProjectRequest, Project, UpdateProjectRequest};
@@ -109,24 +110,40 @@ pub fn save_page_code(
 }
 
 #[tauri::command]
-pub fn generate_page(
-    state: State<AppState>,
+pub async fn generate_page(
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
     project_id: String,
     page_id: String,
     prompt: String,
 ) -> Result<Project> {
-    let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
-        "Failed to lock storage".to_string()
-    ))?;
+    let mut project = {
+        let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
+            "Failed to lock storage".to_string()
+        ))?;
+        storage.load_project(&project_id)?
+    };
 
-    let mut project = storage.load_project(&project_id)?;
+    let settings = load_settings(&app_handle)?;
 
     if let Some(page) = project.pages.iter_mut().find(|p| p.id == page_id) {
-        let generated_code = generate_html_from_prompt(&prompt, Some(&page.current_code));
+        let existing_code = page.current_code.clone();
+        let generated_code = if settings.api_key.trim().is_empty() {
+            generate_html_from_prompt(&prompt, Some(&existing_code))
+        } else {
+            let provider = ApiProvider::try_from(settings.api_provider.as_str())?;
+            let service = AiService::new(settings.api_key, settings.model, provider);
+            service.generate_html(&prompt, Some(&existing_code)).await?
+        };
+
         page.current_code = generated_code.clone();
         project.updated_at = chrono::Local::now();
 
         let version_id = uuid::Uuid::new_v4().to_string();
+
+        let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
+            "Failed to lock storage".to_string()
+        ))?;
         storage.save_project(&project)?;
         storage.save_version(&project_id, &version_id, &generated_code)?;
 
@@ -228,6 +245,15 @@ pub fn export_project_files(
 
     let project = storage.load_project(&project_id)?;
     export_project(&project, &export_dir)
+}
+
+fn load_settings(app_handle: &AppHandle) -> Result<AppSettings> {
+    let app_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| crate::error::PageGenError::Io(e.to_string()))?;
+
+    SettingsStorage::new(app_dir.join("settings.json")).load()
 }
 
 #[cfg(test)]

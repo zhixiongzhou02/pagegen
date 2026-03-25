@@ -4,6 +4,7 @@ import { Preview } from './components/Preview'
 import { CodePanel } from './components/CodePanel'
 import { ChatInput } from './components/ChatInput'
 import { SettingsModal } from './components/SettingsModal'
+import { CreateProjectModal } from './components/CreateProjectModal'
 import { useProjectStore } from './store/projectStore'
 import { ipcService } from './services/ipc'
 import type { AppSettings } from './types'
@@ -12,7 +13,7 @@ import './App.css'
 const DEFAULT_SETTINGS: AppSettings = {
   apiProvider: 'claude',
   apiKey: '',
-  model: 'claude-3-5-sonnet-20241022',
+  model: 'claude-sonnet-4-20250514',
   theme: 'system',
 }
 
@@ -34,6 +35,7 @@ function App() {
   const [draftCode, setDraftCode] = useState('')
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -123,12 +125,12 @@ function App() {
     setError(null)
   }
 
-  const handleCreateProject = async () => {
-    const name = window.prompt('输入项目名称', `项目 ${projects.length + 1}`)?.trim()
-    if (!name) {
-      return
-    }
+  const handleOpenCreateProject = () => {
+    setIsCreateProjectOpen(true)
+    setError(null)
+  }
 
+  const handleCreateProject = async (name: string) => {
     setLoading(true)
     setError(null)
 
@@ -138,10 +140,12 @@ function App() {
       setCurrentProject(project)
       setCurrentPage(project.pages[0] ?? null)
       setDraftCode(project.pages[0]?.currentCode ?? '')
+      setIsCreateProjectOpen(false)
       setSuccessMessage(`已创建项目“${project.name}”`)
     } catch (createError) {
       const message = createError instanceof Error ? createError.message : '创建项目失败'
       setError(message)
+      throw createError
     } finally {
       setLoading(false)
     }
@@ -302,7 +306,7 @@ function App() {
           </button>
           <button
             type="button"
-            onClick={handleCreateProject}
+            onClick={handleOpenCreateProject}
             className="px-3 py-1.5 text-sm bg-primary-500 text-white rounded hover:bg-primary-600"
           >
             新建项目
@@ -327,7 +331,7 @@ function App() {
         <Sidebar
           projects={projects}
           currentProjectId={currentProject?.id ?? null}
-          onCreateProject={handleCreateProject}
+          onCreateProject={handleOpenCreateProject}
           onSelectProject={handleSelectProject}
           isLoading={isLoading}
         />
@@ -362,6 +366,14 @@ function App() {
         isSaving={isLoading}
         onClose={() => setIsSettingsOpen(false)}
         onSave={handleSaveSettings}
+      />
+
+      <CreateProjectModal
+        isOpen={isCreateProjectOpen}
+        isSaving={isLoading}
+        defaultName={`项目 ${projects.length + 1}`}
+        onClose={() => setIsCreateProjectOpen(false)}
+        onSubmit={handleCreateProject}
       />
     </div>
   )

@@ -15,18 +15,18 @@ describe('AI Service', () => {
       expect(result.error).toBeUndefined()
     })
 
-    it('should reject empty API key', () => {
+    it('should allow empty API key so settings can be saved before configuration', () => {
       const result = validateApiKey('')
 
-      expect(result.valid).toBe(false)
-      expect(result.error).toBe('API key cannot be empty')
+      expect(result.valid).toBe(true)
+      expect(result.error).toBeUndefined()
     })
 
-    it('should reject whitespace-only API key', () => {
+    it('should allow whitespace-only API key input', () => {
       const result = validateApiKey('   ')
 
-      expect(result.valid).toBe(false)
-      expect(result.error).toBe('API key cannot be empty')
+      expect(result.valid).toBe(true)
+      expect(result.error).toBeUndefined()
     })
   })
 

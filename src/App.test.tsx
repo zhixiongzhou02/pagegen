@@ -39,7 +39,7 @@ const baseProject = (): Project => ({
 const baseSettings: AppSettings = {
   apiProvider: 'claude',
   apiKey: 'sk-test',
-  model: 'claude-3-5-sonnet-20241022',
+  model: 'claude-sonnet-4-20250514',
   theme: 'light',
 }
 
@@ -101,12 +101,13 @@ describe('App', () => {
   })
 
   it('creates a project from the new project action', async () => {
-    vi.mocked(window.prompt).mockReturnValueOnce('New Project')
-
     render(<App />)
 
     await screen.findByText('Landing Page')
     await userEvent.click(screen.getByRole('button', { name: '新建项目' }))
+    await userEvent.clear(screen.getByPlaceholderText('例如：营销落地页'))
+    await userEvent.type(screen.getByPlaceholderText('例如：营销落地页'), 'New Project')
+    await userEvent.click(screen.getByRole('button', { name: '创建项目' }))
 
     await waitFor(() => {
       expect(ipcServiceMock.createProject).toHaveBeenCalledWith({ name: 'New Project' })
@@ -158,7 +159,7 @@ describe('App', () => {
       expect(ipcServiceMock.saveSettings).toHaveBeenCalledWith({
         apiProvider: 'openai',
         apiKey: 'sk-openai',
-        model: 'gpt-4-turbo',
+        model: 'gpt-5.4',
         theme: 'light',
       })
     })

@@ -171,7 +171,7 @@ describe('IPC Service', () => {
       vi.mocked(invoke).mockResolvedValueOnce({
         api_provider: 'claude',
         api_key: 'sk-test',
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-20250514',
         theme: 'dark',
         default_export_path: '/tmp/export',
       })
@@ -182,7 +182,7 @@ describe('IPC Service', () => {
       expect(result).toEqual<AppSettings>({
         apiProvider: 'claude',
         apiKey: 'sk-test',
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-20250514',
         theme: 'dark',
         defaultExportPath: '/tmp/export',
       })
@@ -192,7 +192,7 @@ describe('IPC Service', () => {
       vi.mocked(invoke).mockResolvedValueOnce({
         api_provider: 'openai',
         api_key: 'sk-openai',
-        model: 'gpt-4',
+        model: 'gpt-4.1',
         theme: 'light',
         default_export_path: null,
       })
@@ -200,7 +200,7 @@ describe('IPC Service', () => {
       const result = await ipcService.saveSettings({
         apiProvider: 'openai',
         apiKey: 'sk-openai',
-        model: 'gpt-4',
+        model: 'gpt-4.1',
         theme: 'light',
       })
 
@@ -208,7 +208,7 @@ describe('IPC Service', () => {
         settings: {
           api_provider: 'openai',
           api_key: 'sk-openai',
-          model: 'gpt-4',
+          model: 'gpt-4.1',
           theme: 'light',
           default_export_path: null,
         },
