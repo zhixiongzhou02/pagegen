@@ -1,3 +1,5 @@
+import Editor from '@monaco-editor/react'
+
 interface CodePanelProps {
   code: string
   isDirty: boolean
@@ -44,13 +46,29 @@ export function CodePanel({
         </div>
       </div>
       <div className="flex-1 p-4 min-h-0">
-        <textarea
-          value={code}
-          onChange={(event) => onChangeCode(event.target.value)}
-          placeholder="<!-- 代码将显示在这里 -->"
-          spellCheck={false}
-          className="h-full w-full resize-none rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-sm text-gray-700 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-200"
-        />
+        <div className="h-full overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+          <Editor
+            height="100%"
+            defaultLanguage="html"
+            language="html"
+            theme="vs-light"
+            value={code}
+            onChange={(value) => onChangeCode(value ?? '')}
+            options={{
+              minimap: { enabled: false },
+              wordWrap: 'on',
+              tabSize: 2,
+              fontSize: 13,
+              fontFamily: 'Menlo, Monaco, Consolas, monospace',
+              automaticLayout: true,
+              scrollBeyondLastLine: false,
+              formatOnPaste: true,
+              formatOnType: true,
+              lineNumbers: 'on',
+              padding: { top: 12, bottom: 12 },
+            }}
+          />
+        </div>
       </div>
     </aside>
   )

@@ -36,6 +36,7 @@ function App() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false)
+  const [previewDeviceMode, setPreviewDeviceMode] = useState<'desktop' | 'mobile'>('desktop')
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -340,6 +341,8 @@ function App() {
         <Preview
           code={draftCode}
           pageName={currentPage?.name ?? null}
+          deviceMode={previewDeviceMode}
+          onChangeDeviceMode={setPreviewDeviceMode}
         />
 
         {/* Right Code Panel */}

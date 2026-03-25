@@ -1,6 +1,10 @@
+type PreviewDevice = 'desktop' | 'mobile'
+
 interface PreviewProps {
   code: string
   pageName: string | null
+  deviceMode: PreviewDevice
+  onChangeDeviceMode: (mode: PreviewDevice) => void
 }
 
 const EMPTY_PREVIEW_HTML = `<!DOCTYPE html>
@@ -37,11 +41,22 @@ const EMPTY_PREVIEW_HTML = `<!DOCTYPE html>
   </body>
 </html>`
 
-export function Preview({ code, pageName }: PreviewProps) {
+export function Preview({
+  code,
+  pageName,
+  deviceMode,
+  onChangeDeviceMode,
+}: PreviewProps) {
+  const frameWidthClass =
+    deviceMode === 'mobile' ? 'max-w-[390px]' : 'max-w-5xl'
+
+  const frameHeightClass =
+    deviceMode === 'mobile' ? 'max-h-[844px]' : 'h-full'
+
   return (
     <main className="flex-1 bg-gray-100 dark:bg-gray-900 flex flex-col">
       <div className="flex-1 p-4 flex items-center justify-center">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full h-full max-w-5xl overflow-hidden">
+        <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full ${frameHeightClass} ${frameWidthClass} overflow-hidden transition-all duration-200`}>
           <iframe
             className="w-full h-full"
             sandbox="allow-scripts allow-same-origin"
@@ -55,8 +70,28 @@ export function Preview({ code, pageName }: PreviewProps) {
         <span className="mr-auto pl-4 text-sm text-gray-500 dark:text-gray-400">
           {pageName ? `当前页面：${pageName}` : '当前页面：未选择'}
         </span>
-        <button className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">💻</button>
-        <button className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700">📱</button>
+        <button
+          type="button"
+          onClick={() => onChangeDeviceMode('desktop')}
+          className={`rounded px-3 py-1.5 text-sm ${
+            deviceMode === 'desktop'
+              ? 'bg-primary-500 text-white'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+          }`}
+        >
+          桌面
+        </button>
+        <button
+          type="button"
+          onClick={() => onChangeDeviceMode('mobile')}
+          className={`rounded px-3 py-1.5 text-sm ${
+            deviceMode === 'mobile'
+              ? 'bg-primary-500 text-white'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+          }`}
+        >
+          手机
+        </button>
       </div>
     </main>
   )

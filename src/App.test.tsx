@@ -5,6 +5,22 @@ import App from './App'
 import { useProjectStore } from './store/projectStore'
 import type { AppSettings, Project } from './types'
 
+vi.mock('@monaco-editor/react', () => ({
+  default: ({
+    value,
+    onChange,
+  }: {
+    value?: string
+    onChange?: (value: string) => void
+  }) => (
+    <textarea
+      data-testid="code-editor"
+      value={value ?? ''}
+      onChange={(event) => onChange?.(event.target.value)}
+    />
+  ),
+}))
+
 const ipcServiceMock = vi.hoisted(() => ({
   getProjects: vi.fn(),
   createProject: vi.fn(),
