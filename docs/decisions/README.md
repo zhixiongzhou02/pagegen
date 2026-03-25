@@ -13,3 +13,7 @@
 ## 建议继续阅读
 
 - [ADR-0001-readme-structure.md](/Users/mac/code/yuanxing/pagegen/docs/decisions/ADR-0001-readme-structure.md)
+- 后续建议补充：
+  - 代理地址与模型策略 ADR
+  - Tauri 架构边界 ADR
+  - 编辑器选型 ADR

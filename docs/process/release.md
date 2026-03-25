@@ -7,7 +7,8 @@
 3. 跑构建
 4. 做一次人工 smoke 流程
 5. 更新相关文档
-6. 用规范的提交信息提交
+6. 更新 [CHANGELOG.md](/Users/mac/code/yuanxing/pagegen/CHANGELOG.md) 中的阶段性变化
+7. 用规范的提交信息提交
 
 ## 最小 Smoke Flow
 
