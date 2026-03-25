@@ -25,6 +25,9 @@ pub enum PageGenError {
     #[error("Invalid API key: {reason}")]
     InvalidApiKey { reason: String },
 
+    #[error("Invalid export path: {reason}")]
+    InvalidExportPath { reason: String },
+
     #[error("Not implemented")]
     NotImplemented,
 }

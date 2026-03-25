@@ -1,6 +1,9 @@
 use crate::error::Result;
 use crate::file_storage::FileStorage;
 use crate::models::{CreateProjectRequest, Project, UpdateProjectRequest};
+use crate::code_generator::generate_html_from_prompt;
+use crate::exporter::{export_page_code, export_project};
+use crate::settings::{AppSettings, SettingsStorage};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 
@@ -105,6 +108,34 @@ pub fn save_page_code(
     }
 }
 
+#[tauri::command]
+pub fn generate_page(
+    state: State<AppState>,
+    project_id: String,
+    page_id: String,
+    prompt: String,
+) -> Result<Project> {
+    let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
+        "Failed to lock storage".to_string()
+    ))?;
+
+    let mut project = storage.load_project(&project_id)?;
+
+    if let Some(page) = project.pages.iter_mut().find(|p| p.id == page_id) {
+        let generated_code = generate_html_from_prompt(&prompt, Some(&page.current_code));
+        page.current_code = generated_code.clone();
+        project.updated_at = chrono::Local::now();
+
+        let version_id = uuid::Uuid::new_v4().to_string();
+        storage.save_project(&project)?;
+        storage.save_version(&project_id, &version_id, &generated_code)?;
+
+        Ok(project)
+    } else {
+        Err(crate::error::PageGenError::ProjectNotFound { id: page_id })
+    }
+}
+
 // Version Commands
 #[tauri::command]
 pub fn save_version(
@@ -142,6 +173,61 @@ pub fn get_app_dir(app_handle: AppHandle) -> Result<String> {
         .map_err(|e| crate::error::PageGenError::Io(e.to_string()))?;
 
     Ok(path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn get_settings(app_handle: AppHandle) -> Result<AppSettings> {
+    let app_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| crate::error::PageGenError::Io(e.to_string()))?;
+
+    SettingsStorage::new(app_dir.join("settings.json")).load()
+}
+
+#[tauri::command]
+pub fn save_settings(app_handle: AppHandle, settings: AppSettings) -> Result<AppSettings> {
+    let app_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| crate::error::PageGenError::Io(e.to_string()))?;
+
+    SettingsStorage::new(app_dir.join("settings.json")).save(&settings)
+}
+
+#[tauri::command]
+pub fn export_current_page(
+    state: State<AppState>,
+    project_id: String,
+    page_id: String,
+    export_path: String,
+) -> Result<String> {
+    let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
+        "Failed to lock storage".to_string()
+    ))?;
+
+    let project = storage.load_project(&project_id)?;
+    let page = project
+        .pages
+        .iter()
+        .find(|page| page.id == page_id)
+        .ok_or(crate::error::PageGenError::ProjectNotFound { id: page_id })?;
+
+    export_page_code(&page.current_code, &export_path)
+}
+
+#[tauri::command]
+pub fn export_project_files(
+    state: State<AppState>,
+    project_id: String,
+    export_dir: String,
+) -> Result<String> {
+    let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
+        "Failed to lock storage".to_string()
+    ))?;
+
+    let project = storage.load_project(&project_id)?;
+    export_project(&project, &export_dir)
 }
 
 #[cfg(test)]
