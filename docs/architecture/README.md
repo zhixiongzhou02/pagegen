@@ -7,6 +7,7 @@
 - [system-overview.md](/Users/mac/code/yuanxing/pagegen/docs/architecture/system-overview.md)
 - [frontend.md](/Users/mac/code/yuanxing/pagegen/docs/architecture/frontend.md)
 - [backend.md](/Users/mac/code/yuanxing/pagegen/docs/architecture/backend.md)
+- [source-structure-policy.md](/Users/mac/code/yuanxing/pagegen/docs/architecture/source-structure-policy.md)
 
 ## 目的
 
