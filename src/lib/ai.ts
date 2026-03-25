@@ -1,0 +1,95 @@
+// AI Service types matching Rust backend
+
+export type ApiProvider = 'claude' | 'openai'
+
+export interface Message {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+}
+
+export interface GenerateRequest {
+  messages: Message[]
+  systemPrompt?: string
+}
+
+export interface AiSettings {
+  provider: ApiProvider
+  apiKey: string
+  model: string
+}
+
+// Available models for each provider
+export const CLAUDE_MODELS = [
+  { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+  { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
+  { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' },
+] as const
+
+export const OPENAI_MODELS = [
+  { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+  { value: 'gpt-4', label: 'GPT-4' },
+  { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+] as const
+
+// System prompt for page generation
+export const DEFAULT_SYSTEM_PROMPT = `You are a professional front-end developer and UI designer.
+Your task is to generate high-quality HTML/CSS/JavaScript code based on user requirements.
+
+Requirements:
+1. Use semantic HTML5 tags
+2. CSS should use modern features (Flexbox/Grid)
+3. Code should be well-structured with appropriate comments
+4. Responsive design for mobile and desktop
+5. Use inline styles or internal style sheets (<style> tags)
+6. Images should use placeholder or Unsplash URLs
+7. Use system font stacks or Google Fonts
+
+Output format:
+- Return ONLY the complete HTML file code
+- Wrap code in \`\`\`html and \`\`\`
+- Do not include markdown explanation text`
+
+export function validateApiKey(apiKey: string): { valid: boolean; error?: string } {
+  if (!apiKey || apiKey.trim().length === 0) {
+    return { valid: false, error: 'API key cannot be empty' }
+  }
+  return { valid: true }
+}
+
+export function buildPrompt(
+  userInput: string,
+  context?: string
+): GenerateRequest {
+  const content = context
+    ? `${userInput}\n\nPrevious context:\n${context}`
+    : userInput
+
+  return {
+    messages: [
+      {
+        role: 'user',
+        content,
+      },
+    ],
+    systemPrompt: DEFAULT_SYSTEM_PROMPT,
+  }
+}
+
+export function extractCodeFromChunk(chunk: string): string | null {
+  // Handle SSE format from Claude API
+  if (chunk.startsWith('data: ')) {
+    const jsonStr = chunk.slice(6) // Remove "data: " prefix
+
+    if (jsonStr === '[DONE]') {
+      return null
+    }
+
+    try {
+      const json = JSON.parse(jsonStr)
+      return json?.delta?.text ?? null
+    } catch {
+      return null
+    }
+  }
+  return null
+}

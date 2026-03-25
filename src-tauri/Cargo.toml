@@ -1,0 +1,37 @@
+[package]
+name = "pagegen"
+version = "0.1.0"
+description = "AI Page Generator Mac App"
+authors = ["PageGen Team"]
+edition = "2021"
+
+[lib]
+name = "pagegen_lib"
+crate-type = ["lib", "staticlib", "cdylib"]
+
+[[bin]]
+name = "pagegen"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
+chrono = { version = "0.4", features = ["serde"] }
+regex = "1.10"
+uuid = { version = "1.7", features = ["v4", "serde"] }
+thiserror = "1.0"
+futures = "0.3"
+
+[dev-dependencies]
+tempfile = "3.10"
+
+[features]
+# This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]
