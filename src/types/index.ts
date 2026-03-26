@@ -38,6 +38,22 @@ export interface AppSettings {
   model: string
   theme: 'light' | 'dark' | 'system'
   defaultExportPath?: string
+  generationMode: GenerationMode
+}
+
+export type GenerationMode = 'fast' | 'quality'
+
+export interface UserFacingError {
+  title: string
+  detail: string
+  suggestion?: string
+}
+
+export interface PreviewElementSelection {
+  nodeId: string
+  tagName: string
+  selector: string
+  textSnippet: string
 }
 
 export interface CreateProjectRequest {

@@ -105,7 +105,8 @@ mod tests {
     #[test]
     fn test_export_project_writes_all_pages() {
         let temp_dir = TempDir::new().unwrap();
-        let exported_dir = export_project(&sample_project(), temp_dir.path().to_str().unwrap()).unwrap();
+        let exported_dir =
+            export_project(&sample_project(), temp_dir.path().to_str().unwrap()).unwrap();
         let exported_path = Path::new(&exported_dir);
 
         assert!(exported_path.join("index.html").exists());
@@ -116,6 +117,9 @@ mod tests {
     fn test_export_path_cannot_be_empty() {
         let result = export_page_code("<html>Hello</html>", "   ");
 
-        assert!(matches!(result, Err(PageGenError::InvalidExportPath { .. })));
+        assert!(matches!(
+            result,
+            Err(PageGenError::InvalidExportPath { .. })
+        ));
     }
 }

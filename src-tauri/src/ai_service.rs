@@ -179,9 +179,12 @@ impl AiService {
             })?;
 
         let status = response.status();
-        let payload: Value = response.json().await.map_err(|error| PageGenError::ApiError {
-            message: format!("OpenAI response parsing failed: {error}"),
-        })?;
+        let payload: Value = response
+            .json()
+            .await
+            .map_err(|error| PageGenError::ApiError {
+                message: format!("OpenAI response parsing failed: {error}"),
+            })?;
 
         if !status.is_success() {
             return Err(PageGenError::ApiError {
@@ -228,9 +231,12 @@ impl AiService {
             })?;
 
         let status = response.status();
-        let payload: Value = response.json().await.map_err(|error| PageGenError::ApiError {
-            message: format!("Claude response parsing failed: {error}"),
-        })?;
+        let payload: Value = response
+            .json()
+            .await
+            .map_err(|error| PageGenError::ApiError {
+                message: format!("Claude response parsing failed: {error}"),
+            })?;
 
         if !status.is_success() {
             return Err(PageGenError::ApiError {
@@ -304,7 +310,9 @@ fn extract_api_error_message(payload: &Value) -> Option<String> {
 
 fn extract_html_document(response: &str) -> Option<String> {
     let lower = response.to_lowercase();
-    let start = lower.find("<!doctype html").or_else(|| lower.find("<html"))?;
+    let start = lower
+        .find("<!doctype html")
+        .or_else(|| lower.find("<html"))?;
     let end = lower.rfind("</html>")?;
     Some(response[start..end + "</html>".len()].trim().to_string())
 }
@@ -358,8 +366,14 @@ mod tests {
 
     #[test]
     fn test_provider_parsing() {
-        assert_eq!(ApiProvider::try_from("claude").unwrap(), ApiProvider::Claude);
-        assert_eq!(ApiProvider::try_from("openai").unwrap(), ApiProvider::OpenAi);
+        assert_eq!(
+            ApiProvider::try_from("claude").unwrap(),
+            ApiProvider::Claude
+        );
+        assert_eq!(
+            ApiProvider::try_from("openai").unwrap(),
+            ApiProvider::OpenAi
+        );
         assert!(ApiProvider::try_from("other").is_err());
     }
 
@@ -371,7 +385,9 @@ mod tests {
 
         assert!(request.system_prompt.is_some());
         assert!(request.messages[0].content.contains("Current page HTML"));
-        assert!(request.messages[0].content.contains("<html>Previous</html>"));
+        assert!(request.messages[0]
+            .content
+            .contains("<html>Previous</html>"));
     }
 
     #[test]

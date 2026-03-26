@@ -1,9 +1,13 @@
 import Editor from '@monaco-editor/react'
+import { useEffect, useRef } from 'react'
+import { findPreviewSelectionRange } from '../lib/preview'
+import type { PreviewElementSelection } from '../types'
 
 interface CodePanelProps {
   code: string
   isDirty: boolean
   isSaving?: boolean
+  selectedElement: PreviewElementSelection | null
   onChangeCode: (code: string) => void
   onSave: () => Promise<void>
   onReset: () => void
@@ -13,10 +17,51 @@ export function CodePanel({
   code,
   isDirty,
   isSaving = false,
+  selectedElement,
   onChangeCode,
   onSave,
   onReset,
 }: CodePanelProps) {
+  const editorRef = useRef<{
+    getModel: () => { getPositionAt: (offset: number) => { lineNumber: number; column: number } } | null
+    revealLineInCenter: (lineNumber: number) => void
+    setSelection: (selection: {
+      startLineNumber: number
+      startColumn: number
+      endLineNumber: number
+      endColumn: number
+    }) => void
+    focus: () => void
+  } | null>(null)
+
+  useEffect(() => {
+    if (!selectedElement || !editorRef.current) {
+      return
+    }
+
+    const range = findPreviewSelectionRange(code, selectedElement)
+    if (!range) {
+      return
+    }
+
+    const model = editorRef.current.getModel()
+    if (!model) {
+      return
+    }
+
+    const start = model.getPositionAt(range.start)
+    const end = model.getPositionAt(range.end)
+
+    editorRef.current.revealLineInCenter(start.lineNumber)
+    editorRef.current.setSelection({
+      startLineNumber: start.lineNumber,
+      startColumn: start.column,
+      endLineNumber: end.lineNumber,
+      endColumn: end.column,
+    })
+    editorRef.current.focus()
+  }, [code, selectedElement])
+
   return (
     <aside className="w-96 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col">
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
@@ -25,6 +70,11 @@ export function CodePanel({
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             右侧修改代码，预览会即时更新。
           </p>
+          {selectedElement ? (
+            <p className="mt-1 text-xs font-medium text-sky-700">
+              预览已定位到 `{selectedElement.selector}`
+            </p>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -54,6 +104,9 @@ export function CodePanel({
             theme="vs-light"
             value={code}
             onChange={(value) => onChangeCode(value ?? '')}
+            onMount={(editor) => {
+              editorRef.current = editor as typeof editorRef.current
+            }}
             options={{
               minimap: { enabled: false },
               wordWrap: 'on',

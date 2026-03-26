@@ -1,21 +1,21 @@
-pub mod models;
-pub mod project_store;
 pub mod ai_service;
-pub mod file_storage;
-pub mod version_control;
 pub mod code_generator;
-pub mod settings;
-pub mod exporter;
 pub mod commands;
 pub mod error;
+pub mod exporter;
+pub mod file_storage;
+pub mod models;
+pub mod project_store;
+pub mod settings;
+pub mod version_control;
 
 // Re-export commonly used types
-pub use error::{PageGenError, Result};
-pub use models::{Project, Page, Version, CreateProjectRequest, UpdateProjectRequest};
-pub use ai_service::{AiService, ApiProvider, Message, GenerateRequest};
-pub use file_storage::FileStorage;
-pub use settings::{AppSettings, SettingsStorage};
+pub use ai_service::{AiService, ApiProvider, GenerateRequest, Message};
 pub use commands::AppState;
+pub use error::{PageGenError, Result};
+pub use file_storage::FileStorage;
+pub use models::{CreateProjectRequest, Page, Project, UpdateProjectRequest, Version};
+pub use settings::{AppSettings, SettingsStorage};
 
 use tauri::Manager;
 

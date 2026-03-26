@@ -46,9 +46,12 @@ impl ProjectStore {
         Self::validate_project_name(&request.name)?;
 
         let mut projects = self.projects.lock().unwrap();
-        let project = projects
-            .get_mut(&request.id)
-            .ok_or_else(|| PageGenError::ProjectNotFound { id: request.id.clone() })?;
+        let project =
+            projects
+                .get_mut(&request.id)
+                .ok_or_else(|| PageGenError::ProjectNotFound {
+                    id: request.id.clone(),
+                })?;
 
         project.name = request.name;
         project.updated_at = chrono::Local::now();
@@ -126,13 +129,17 @@ mod tests {
     fn test_get_all_returns_created_projects() {
         let (store, _temp) = create_test_store();
 
-        store.create(CreateProjectRequest {
-            name: "Project 1".to_string(),
-        }).unwrap();
+        store
+            .create(CreateProjectRequest {
+                name: "Project 1".to_string(),
+            })
+            .unwrap();
 
-        store.create(CreateProjectRequest {
-            name: "Project 2".to_string(),
-        }).unwrap();
+        store
+            .create(CreateProjectRequest {
+                name: "Project 2".to_string(),
+            })
+            .unwrap();
 
         let projects = store.get_all().unwrap();
 
@@ -143,9 +150,11 @@ mod tests {
     fn test_get_project_by_id() {
         let (store, _temp) = create_test_store();
 
-        let created = store.create(CreateProjectRequest {
-            name: "Test Project".to_string(),
-        }).unwrap();
+        let created = store
+            .create(CreateProjectRequest {
+                name: "Test Project".to_string(),
+            })
+            .unwrap();
 
         let fetched = store.get(&created.id).unwrap();
 
@@ -166,14 +175,18 @@ mod tests {
     fn test_update_project_name() {
         let (store, _temp) = create_test_store();
 
-        let created = store.create(CreateProjectRequest {
-            name: "Old Name".to_string(),
-        }).unwrap();
+        let created = store
+            .create(CreateProjectRequest {
+                name: "Old Name".to_string(),
+            })
+            .unwrap();
 
-        let updated = store.update(UpdateProjectRequest {
-            id: created.id.clone(),
-            name: "New Name".to_string(),
-        }).unwrap();
+        let updated = store
+            .update(UpdateProjectRequest {
+                id: created.id.clone(),
+                name: "New Name".to_string(),
+            })
+            .unwrap();
 
         assert_eq!(updated.name, "New Name");
         assert!(updated.updated_at > created.updated_at);
@@ -183,9 +196,11 @@ mod tests {
     fn test_delete_project() {
         let (store, _temp) = create_test_store();
 
-        let created = store.create(CreateProjectRequest {
-            name: "To Delete".to_string(),
-        }).unwrap();
+        let created = store
+            .create(CreateProjectRequest {
+                name: "To Delete".to_string(),
+            })
+            .unwrap();
 
         store.delete(&created.id).unwrap();
 

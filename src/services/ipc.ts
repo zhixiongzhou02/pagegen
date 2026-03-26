@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { AppSettings, Project, Page, Version, CreateProjectRequest, UpdateProjectRequest } from '../types'
+import type { AppSettings, Project, Page, Version, CreateProjectRequest, UpdateProjectRequest, GenerationMode } from '../types'
 
 type BackendVersion = {
   id: string
@@ -30,6 +30,64 @@ type BackendSettings = {
   model: string
   theme: AppSettings['theme']
   default_export_path?: string | null
+  generation_mode?: GenerationMode | null
+}
+
+type SerializedBackendError = {
+  type?: string
+  message?: string
+}
+
+export class BackendCommandError extends Error {
+  code?: string
+
+  constructor(message: string, code?: string) {
+    super(message)
+    this.name = 'BackendCommandError'
+    this.code = code
+  }
+}
+
+function toBackendError(error: unknown): BackendCommandError {
+  if (error instanceof BackendCommandError) {
+    return error
+  }
+
+  if (error instanceof Error && error.message) {
+    return new BackendCommandError(error.message)
+  }
+
+  if (typeof error === 'string') {
+    return new BackendCommandError(error)
+  }
+
+  if (typeof error === 'object' && error !== null) {
+    const serialized = error as SerializedBackendError
+    const message = typeof serialized.message === 'string' && serialized.message.trim()
+      ? serialized.message
+      : typeof serialized.type === 'string' && serialized.type.trim()
+        ? serialized.type
+        : '发生未知错误'
+    const code = typeof serialized.type === 'string' && serialized.type.trim()
+      ? serialized.type
+      : undefined
+
+    return new BackendCommandError(message, code)
+  }
+
+  return new BackendCommandError('发生未知错误')
+}
+
+async function invokeCommand<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  try {
+    if (args === undefined) {
+      return await invoke<T>(command)
+    }
+
+    return await invoke<T>(command, args)
+  } catch (error) {
+    throw toBackendError(error)
+  }
 }
 
 function toTimestamp(value: string | number): number {
@@ -77,6 +135,7 @@ function normalizeSettings(settings: BackendSettings): AppSettings {
     model: settings.model,
     theme: settings.theme,
     defaultExportPath: settings.default_export_path ?? undefined,
+    generationMode: settings.generation_mode ?? 'quality',
   }
 }
 
@@ -87,6 +146,7 @@ function serializeSettings(settings: AppSettings): BackendSettings {
     model: settings.model,
     theme: settings.theme,
     default_export_path: settings.defaultExportPath ?? null,
+    generation_mode: settings.generationMode,
   }
 }
 
@@ -94,71 +154,72 @@ function serializeSettings(settings: AppSettings): BackendSettings {
 export const ipcService = {
   // Project commands
   async createProject(request: CreateProjectRequest): Promise<Project> {
-    const project = await invoke<BackendProject>('create_project', { request })
+    const project = await invokeCommand<BackendProject>('create_project', { request })
     return normalizeProject(project)
   },
 
   async getProjects(): Promise<Project[]> {
-    const projects = await invoke<BackendProject[]>('get_projects')
+    const projects = await invokeCommand<BackendProject[]>('get_projects')
     return projects.map(normalizeProject)
   },
 
   async getProject(id: string): Promise<Project> {
-    const project = await invoke<BackendProject>('get_project', { id })
+    const project = await invokeCommand<BackendProject>('get_project', { id })
     return normalizeProject(project)
   },
 
   async updateProject(request: UpdateProjectRequest): Promise<Project> {
-    const project = await invoke<BackendProject>('update_project', { request })
+    const project = await invokeCommand<BackendProject>('update_project', { request })
     return normalizeProject(project)
   },
 
   async deleteProject(id: string): Promise<void> {
-    return invoke('delete_project', { id })
+    return invokeCommand('delete_project', { id })
   },
 
-  async generatePage(projectId: string, pageId: string, prompt: string): Promise<Project> {
-    const project = await invoke<BackendProject>('generate_page', {
+  async generatePage(projectId: string, pageId: string, prompt: string, mode: GenerationMode): Promise<Project> {
+    const project = await invokeCommand<BackendProject>('generate_page', {
       projectId,
       pageId,
       prompt,
+      mode,
     })
     return normalizeProject(project)
   },
 
   // Page commands
   async savePageCode(projectId: string, pageId: string, code: string): Promise<void> {
-    return invoke('save_page_code', { projectId, pageId, code })
+    return invokeCommand('save_page_code', { projectId, pageId, code })
   },
 
   // Version commands
   async saveVersion(projectId: string, versionId: string, code: string): Promise<void> {
-    return invoke('save_version', { projectId, versionId, code })
+    return invokeCommand('save_version', { projectId, versionId, code })
   },
 
   async loadVersion(projectId: string, versionId: string): Promise<string> {
-    return invoke('load_version', { projectId, versionId })
+    return invokeCommand('load_version', { projectId, versionId })
   },
 
   // Settings commands
   async getAppDir(): Promise<string> {
-    return invoke('get_app_dir')
+    return invokeCommand('get_app_dir')
   },
 
   async getSettings(): Promise<AppSettings> {
-    const settings = await invoke<BackendSettings>('get_settings')
+    const settings = await invokeCommand<BackendSettings>('get_settings')
     return normalizeSettings(settings)
   },
 
   async saveSettings(settings: AppSettings): Promise<AppSettings> {
-    const saved = await invoke<BackendSettings>('save_settings', {
+    const saved = await invokeCommand<BackendSettings>('save_settings', {
       settings: serializeSettings(settings),
     })
     return normalizeSettings(saved)
   },
 
   async exportCurrentPage(projectId: string, pageId: string, exportPath: string): Promise<string> {
-    return invoke('export_current_page', {
+    return invokeCommand('export_current_page', {
       projectId,
       pageId,
       exportPath,
@@ -166,7 +227,7 @@ export const ipcService = {
   },
 
   async exportProjectFiles(projectId: string, exportDir: string): Promise<string> {
-    return invoke('export_project_files', {
+    return invokeCommand('export_project_files', {
       projectId,
       exportDir,
     })

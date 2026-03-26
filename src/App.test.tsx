@@ -57,6 +57,8 @@ const baseSettings: AppSettings = {
   apiKey: 'sk-test',
   model: 'claude-sonnet-4-20250514',
   theme: 'light',
+  generationMode: 'quality',
+  defaultExportPath: '/tmp/export',
 }
 
 describe('App', () => {
@@ -102,7 +104,6 @@ describe('App', () => {
       dispatchEvent: vi.fn(),
     }))
     vi.stubGlobal('alert', vi.fn())
-    vi.stubGlobal('prompt', vi.fn())
   })
 
   it('loads existing projects on startup', async () => {
@@ -138,10 +139,63 @@ describe('App', () => {
     await userEvent.click(screen.getByRole('button', { name: '发送' }))
 
     await waitFor(() => {
-      expect(ipcServiceMock.generatePage).toHaveBeenCalledWith('project-1', 'page-1', '做一个 pricing 页面')
+      expect(ipcServiceMock.generatePage).toHaveBeenCalledWith('project-1', 'page-1', '做一个 pricing 页面', 'quality')
     })
 
     expect(await screen.findByDisplayValue('<html><body>Generated</body></html>')).toBeInTheDocument()
+    expect(await screen.findByText(/页面已生成并保存，用时 .* 秒/)).toBeInTheDocument()
+  })
+
+  it('shows a readable error message when page generation fails', async () => {
+    ipcServiceMock.generatePage.mockRejectedValueOnce(new Error('timed out'))
+
+    render(<App />)
+
+    await screen.findByText('Landing Page')
+    await userEvent.type(screen.getByPlaceholderText('描述你想要的页面...'), '做一个 login 页面')
+    await userEvent.click(screen.getByRole('button', { name: '发送' }))
+
+    await waitFor(() => {
+      expect(ipcServiceMock.generatePage).toHaveBeenCalledWith('project-1', 'page-1', '做一个 login 页面', 'quality')
+    })
+
+    expect(await screen.findByText('页面生成失败')).toBeInTheDocument()
+    expect(await screen.findByText('请求超时，服务在限定时间内没有返回结果。')).toBeInTheDocument()
+    expect(await screen.findByText('建议：你可以重试一次，或切换到更快的模型。')).toBeInTheDocument()
+  })
+
+  it('allows switching to fast mode before generation', async () => {
+    render(<App />)
+
+    await screen.findByText('Landing Page')
+    await userEvent.click(screen.getByRole('button', { name: '快速模式' }))
+    await userEvent.type(screen.getByPlaceholderText('描述你想要的页面...'), '做一个 dashboard')
+    await userEvent.click(screen.getByRole('button', { name: '发送' }))
+
+    await waitFor(() => {
+      expect(ipcServiceMock.generatePage).toHaveBeenCalledWith('project-1', 'page-1', '做一个 dashboard', 'fast')
+    })
+    expect(ipcServiceMock.saveSettings).toHaveBeenCalledWith({
+      ...baseSettings,
+      generationMode: 'fast',
+    })
+  })
+
+  it('uses persisted generation mode from settings on startup', async () => {
+    ipcServiceMock.getSettings.mockResolvedValueOnce({
+      ...baseSettings,
+      generationMode: 'fast',
+    })
+
+    render(<App />)
+
+    await screen.findByText('Landing Page')
+    await userEvent.type(screen.getByPlaceholderText('描述你想要的页面...'), '做一个 analytics 页面')
+    await userEvent.click(screen.getByRole('button', { name: '发送' }))
+
+    await waitFor(() => {
+      expect(ipcServiceMock.generatePage).toHaveBeenCalledWith('project-1', 'page-1', '做一个 analytics 页面', 'fast')
+    })
   })
 
   it('saves edited code from the code panel', async () => {
@@ -177,19 +231,20 @@ describe('App', () => {
         apiKey: 'sk-openai',
         model: 'gpt-5.4',
         theme: 'light',
+        generationMode: 'quality',
+        defaultExportPath: '/tmp/export',
       })
     })
   })
 
   it('exports the current page through the export action', async () => {
-    vi.mocked(window.prompt)
-      .mockReturnValueOnce('page')
-      .mockReturnValueOnce('/tmp/export/index.html')
-
     render(<App />)
 
     await screen.findByText('Landing Page')
     await userEvent.click(screen.getByRole('button', { name: '导出' }))
+    await userEvent.clear(screen.getByRole('textbox', { name: '导出文件路径' }))
+    await userEvent.type(screen.getByRole('textbox', { name: '导出文件路径' }), '/tmp/export/index.html')
+    await userEvent.click(screen.getByRole('button', { name: '导出当前页面' }))
 
     await waitFor(() => {
       expect(ipcServiceMock.exportCurrentPage).toHaveBeenCalledWith(
@@ -198,5 +253,32 @@ describe('App', () => {
         '/tmp/export/index.html',
       )
     })
+  })
+
+  it('exports the whole project through the export modal', async () => {
+    render(<App />)
+
+    await screen.findByText('Landing Page')
+    await userEvent.click(screen.getByRole('button', { name: '导出' }))
+    await userEvent.click(screen.getByRole('button', { name: /整个项目/ }))
+    await userEvent.clear(screen.getByRole('textbox', { name: '导出目录' }))
+    await userEvent.type(screen.getByRole('textbox', { name: '导出目录' }), '/tmp/final-export')
+    await userEvent.click(screen.getByRole('button', { name: '导出整个项目' }))
+
+    await waitFor(() => {
+      expect(ipcServiceMock.exportProjectFiles).toHaveBeenCalledWith('project-1', '/tmp/final-export')
+    })
+  })
+
+  it('validates export target before submitting', async () => {
+    render(<App />)
+
+    await screen.findByText('Landing Page')
+    await userEvent.click(screen.getByRole('button', { name: '导出' }))
+    await userEvent.clear(screen.getByRole('textbox', { name: '导出文件路径' }))
+    await userEvent.click(screen.getByRole('button', { name: '导出当前页面' }))
+
+    expect(await screen.findByText('请输入导出文件路径')).toBeInTheDocument()
+    expect(ipcServiceMock.exportCurrentPage).not.toHaveBeenCalled()
   })
 })

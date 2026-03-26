@@ -5,9 +5,11 @@ import { CodePanel } from './components/CodePanel'
 import { ChatInput } from './components/ChatInput'
 import { SettingsModal } from './components/SettingsModal'
 import { CreateProjectModal } from './components/CreateProjectModal'
+import { ExportModal } from './components/ExportModal'
 import { useProjectStore } from './store/projectStore'
 import { ipcService } from './services/ipc'
-import type { AppSettings } from './types'
+import { createUserFacingError, formatUserFacingError } from './lib/utils'
+import type { AppSettings, GenerationMode, PreviewElementSelection } from './types'
 import './App.css'
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -15,6 +17,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   apiKey: '',
   model: 'claude-sonnet-4-20250514',
   theme: 'system',
+  generationMode: 'quality',
 }
 
 function App() {
@@ -36,7 +39,11 @@ function App() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false)
+  const [isExportOpen, setIsExportOpen] = useState(false)
   const [previewDeviceMode, setPreviewDeviceMode] = useState<'desktop' | 'mobile'>('desktop')
+  const [selectedPreviewElement, setSelectedPreviewElement] = useState<PreviewElementSelection | null>(null)
+  const [generationMode, setGenerationMode] = useState<GenerationMode>('quality')
+  const [generationStatus, setGenerationStatus] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -63,8 +70,7 @@ function App() {
           return
         }
 
-        const message = loadError instanceof Error ? loadError.message : '加载项目失败'
-        setError(message)
+        setError(formatUserFacingError('加载项目', loadError))
       } finally {
         if (isMounted) {
           setLoading(false)
@@ -84,9 +90,9 @@ function App() {
       try {
         const loadedSettings = await ipcService.getSettings()
         setSettings(loadedSettings)
+        setGenerationMode(loadedSettings.generationMode)
       } catch (settingsError) {
-        const message = settingsError instanceof Error ? settingsError.message : '加载设置失败'
-        setError(message)
+        setError(formatUserFacingError('加载设置', settingsError))
       }
     }
 
@@ -112,6 +118,7 @@ function App() {
 
   useEffect(() => {
     setDraftCode(currentPage?.currentCode ?? '')
+    setSelectedPreviewElement(null)
   }, [currentPage?.id, currentPage?.currentCode])
 
   const isCodeDirty = useMemo(
@@ -144,9 +151,7 @@ function App() {
       setIsCreateProjectOpen(false)
       setSuccessMessage(`已创建项目“${project.name}”`)
     } catch (createError) {
-      const message = createError instanceof Error ? createError.message : '创建项目失败'
-      setError(message)
-      throw createError
+      setError(formatUserFacingError('创建项目', createError))
     } finally {
       setLoading(false)
     }
@@ -154,33 +159,62 @@ function App() {
 
   const handleGeneratePage = async (prompt: string) => {
     if (!currentProject || !currentPage) {
-      setError('请先创建并选中一个项目')
+      setError(createUserFacingError('无法生成页面', '当前没有可用的项目或页面。', '请先创建并选中一个项目。'))
       return
     }
 
+    const startedAt = Date.now()
     setLoading(true)
     setError(null)
+    setGenerationStatus(generationMode === 'fast' ? '快速模式生成中...' : '高质量模式生成中...')
 
     try {
-      const project = await ipcService.generatePage(currentProject.id, currentPage.id, prompt)
+      const project = await ipcService.generatePage(currentProject.id, currentPage.id, prompt, generationMode)
       updateProject(project)
       setCurrentProject(project)
       const nextPage = project.pages.find((page) => page.id === currentPage.id) ?? project.pages[0] ?? null
       setCurrentPage(nextPage)
       setDraftCode(nextPage?.currentCode ?? '')
-      setSuccessMessage('页面已生成并保存')
+      setSelectedPreviewElement(null)
+      const durationSeconds = ((Date.now() - startedAt) / 1000).toFixed(1)
+      setSuccessMessage(`页面已生成并保存，用时 ${durationSeconds} 秒`)
+      setGenerationStatus(null)
     } catch (generateError) {
-      const message = generateError instanceof Error ? generateError.message : '页面生成失败'
-      setError(message)
-      throw generateError
+      setError(formatUserFacingError('页面生成', generateError))
+      setGenerationStatus(null)
     } finally {
       setLoading(false)
     }
   }
 
+  const handleChangeGenerationMode = async (nextMode: GenerationMode) => {
+    if (nextMode === generationMode) {
+      return
+    }
+
+    const previousSettings = settings
+    const nextSettings = {
+      ...settings,
+      generationMode: nextMode,
+    }
+
+    setGenerationMode(nextMode)
+    setGenerationStatus(null)
+    setSettings(nextSettings)
+
+    try {
+      const savedSettings = await ipcService.saveSettings(nextSettings)
+      setSettings(savedSettings)
+    } catch (saveError) {
+      setGenerationMode(previousSettings.generationMode)
+      setSettings(previousSettings)
+      setError(formatUserFacingError('保存生成模式', saveError))
+    }
+  }
+
   const handleSaveCode = async () => {
     if (!currentProject || !currentPage) {
-      setError('当前没有可保存的页面')
+      setError(createUserFacingError('无法保存代码', '当前没有可保存的页面。', '请先创建并选中一个项目。'))
       return
     }
 
@@ -205,10 +239,10 @@ function App() {
       setCurrentProject(updatedProject)
       setCurrentPage(updatedPage)
       setDraftCode(updatedPage?.currentCode ?? '')
+      setSelectedPreviewElement(null)
       setSuccessMessage('代码已保存')
     } catch (saveError) {
-      const message = saveError instanceof Error ? saveError.message : '保存代码失败'
-      setError(message)
+      setError(formatUserFacingError('保存代码', saveError))
     } finally {
       setLoading(false)
     }
@@ -226,43 +260,29 @@ function App() {
     try {
       const savedSettings = await ipcService.saveSettings(nextSettings)
       setSettings(savedSettings)
+      setGenerationMode(savedSettings.generationMode)
       setIsSettingsOpen(false)
       setSuccessMessage('设置已保存')
     } catch (saveError) {
-      const message = saveError instanceof Error ? saveError.message : '保存设置失败'
-      setError(message)
-      throw saveError
+      setError(formatUserFacingError('保存设置', saveError))
     } finally {
       setLoading(false)
     }
   }
 
-  const handleExport = async () => {
+  const handleOpenExport = () => {
     if (!currentProject || !currentPage) {
-      setError('请先创建并选中一个项目')
+      setError(createUserFacingError('无法导出', '当前没有可导出的项目或页面。', '请先创建并选中一个项目。'))
       return
     }
 
-    const exportMode = window
-      .prompt('输入导出模式：page 导出当前页面，project 导出整个项目', 'page')
-      ?.trim()
-      .toLowerCase()
+    setError(null)
+    setIsExportOpen(true)
+  }
 
-    if (!exportMode) {
-      return
-    }
-
-    const defaultPath = settings.defaultExportPath ?? '/Users/mac/Desktop/PageGenExports'
-    const exportTarget = window.prompt(
-      exportMode === 'project'
-        ? '输入导出目录'
-        : '输入导出文件完整路径（例如 /Users/mac/Desktop/PageGenExports/index.html）',
-      exportMode === 'project'
-        ? defaultPath
-        : `${defaultPath}/${currentPage.path}`,
-    )?.trim()
-
-    if (!exportTarget) {
+  const handleExport = async (mode: 'page' | 'project', exportTarget: string) => {
+    if (!currentProject || !currentPage) {
+      setError(createUserFacingError('无法导出', '当前没有可导出的项目或页面。', '请先创建并选中一个项目。'))
       return
     }
 
@@ -270,14 +290,14 @@ function App() {
     setError(null)
 
     try {
-      const exportedPath = exportMode === 'project'
+      const exportedPath = mode === 'project'
         ? await ipcService.exportProjectFiles(currentProject.id, exportTarget)
         : await ipcService.exportCurrentPage(currentProject.id, currentPage.id, exportTarget)
 
+      setIsExportOpen(false)
       setSuccessMessage(`导出完成：${exportedPath}`)
     } catch (exportError) {
-      const message = exportError instanceof Error ? exportError.message : '导出失败'
-      setError(message)
+      setError(formatUserFacingError('导出', exportError))
     } finally {
       setLoading(false)
     }
@@ -300,7 +320,7 @@ function App() {
           </button>
           <button
             type="button"
-            onClick={handleExport}
+            onClick={handleOpenExport}
             className="px-3 py-1.5 text-sm bg-primary-500 text-white rounded hover:bg-primary-600"
           >
             导出
@@ -318,8 +338,10 @@ function App() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {error ? (
-          <div className="absolute left-1/2 top-16 z-10 -translate-x-1/2 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700 shadow">
-            {error}
+          <div className="absolute left-1/2 top-16 z-10 w-[min(32rem,calc(100%-2rem))] -translate-x-1/2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow">
+            <p className="font-semibold">{error.title}</p>
+            <p className="mt-1">{error.detail}</p>
+            {error.suggestion ? <p className="mt-1 text-red-700/90">建议：{error.suggestion}</p> : null}
           </div>
         ) : null}
         {successMessage ? (
@@ -342,7 +364,9 @@ function App() {
           code={draftCode}
           pageName={currentPage?.name ?? null}
           deviceMode={previewDeviceMode}
+          selectedElement={selectedPreviewElement}
           onChangeDeviceMode={setPreviewDeviceMode}
+          onSelectElement={setSelectedPreviewElement}
         />
 
         {/* Right Code Panel */}
@@ -350,7 +374,11 @@ function App() {
           code={draftCode}
           isDirty={isCodeDirty}
           isSaving={isLoading}
-          onChangeCode={setDraftCode}
+          selectedElement={selectedPreviewElement}
+          onChangeCode={(nextCode) => {
+            setDraftCode(nextCode)
+            setSelectedPreviewElement(null)
+          }}
           onSave={handleSaveCode}
           onReset={handleResetCode}
         />
@@ -360,6 +388,9 @@ function App() {
       <ChatInput
         hasActiveProject={Boolean(currentProject)}
         isSubmitting={isLoading}
+        generationMode={generationMode}
+        statusMessage={generationStatus}
+        onChangeGenerationMode={(mode) => void handleChangeGenerationMode(mode)}
         onSubmitPrompt={handleGeneratePage}
       />
 
@@ -377,6 +408,16 @@ function App() {
         defaultName={`项目 ${projects.length + 1}`}
         onClose={() => setIsCreateProjectOpen(false)}
         onSubmit={handleCreateProject}
+      />
+
+      <ExportModal
+        isOpen={isExportOpen}
+        isSaving={isLoading}
+        defaultExportPath={settings.defaultExportPath ?? '/Users/mac/Desktop/PageGenExports'}
+        projectName={currentProject?.name ?? 'pagegen-export'}
+        currentPagePath={currentPage?.path ?? 'index.html'}
+        onClose={() => setIsExportOpen(false)}
+        onSubmit={handleExport}
       />
     </div>
   )

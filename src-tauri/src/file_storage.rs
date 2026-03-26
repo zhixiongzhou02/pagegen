@@ -1,5 +1,5 @@
 use crate::error::{PageGenError, Result};
-use crate::models::{Project, Page};
+use crate::models::{Page, Project};
 use std::fs;
 use std::path::PathBuf;
 
@@ -96,7 +96,11 @@ impl FileStorage {
 
     /// Save a version snapshot
     pub fn save_version(&self, project_id: &str, version_id: &str, code: &str) -> Result<()> {
-        let versions_path = self.base_path.join(project_id).join(".versions").join(version_id);
+        let versions_path = self
+            .base_path
+            .join(project_id)
+            .join(".versions")
+            .join(version_id);
         fs::create_dir_all(&versions_path)?;
 
         let snapshot_path = versions_path.join("index.html");
@@ -180,7 +184,10 @@ mod tests {
         assert_eq!(loaded.id, "test-456");
         assert_eq!(loaded.name, "My Project");
         assert_eq!(loaded.pages.len(), 1);
-        assert_eq!(loaded.pages[0].current_code, "<html><body>Hello</body></html>");
+        assert_eq!(
+            loaded.pages[0].current_code,
+            "<html><body>Hello</body></html>"
+        );
     }
 
     #[test]
@@ -248,7 +255,9 @@ mod tests {
         storage.save_project(&project).unwrap();
 
         let version_code = "<html><body>Version 1</body></html>";
-        storage.save_version("version-test", "v1", version_code).unwrap();
+        storage
+            .save_version("version-test", "v1", version_code)
+            .unwrap();
 
         let loaded = storage.load_version("version-test", "v1").unwrap();
         assert_eq!(loaded, version_code);
@@ -281,7 +290,10 @@ mod tests {
 
         let loaded = storage.load_project("update-test").unwrap();
         assert_eq!(loaded.name, "Updated Name");
-        assert_eq!(loaded.pages[0].current_code, "<html><body>Updated</body></html>");
+        assert_eq!(
+            loaded.pages[0].current_code,
+            "<html><body>Updated</body></html>"
+        );
     }
 
     #[test]
@@ -300,7 +312,10 @@ mod tests {
 
         let loaded = storage.load_project("multi-page").unwrap();
         assert_eq!(loaded.pages.len(), 2);
-        assert!(storage.get_project_path("multi-page").join("about.html").exists());
+        assert!(storage
+            .get_project_path("multi-page")
+            .join("about.html")
+            .exists());
     }
 
     #[test]

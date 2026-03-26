@@ -10,6 +10,8 @@ pub struct AppSettings {
     pub model: String,
     pub theme: String,
     pub default_export_path: Option<String>,
+    #[serde(default = "default_generation_mode")]
+    pub generation_mode: String,
 }
 
 impl Default for AppSettings {
@@ -20,8 +22,13 @@ impl Default for AppSettings {
             model: "claude-sonnet-4-20250514".to_string(),
             theme: "system".to_string(),
             default_export_path: None,
+            generation_mode: default_generation_mode(),
         }
     }
+}
+
+fn default_generation_mode() -> String {
+    "quality".to_string()
 }
 
 pub struct SettingsStorage {
@@ -59,9 +66,9 @@ mod tests {
     use tempfile::TempDir;
 
     fn create_storage() -> (SettingsStorage, TempDir) {
-      let temp_dir = TempDir::new().unwrap();
-      let path = temp_dir.path().join("settings.json");
-      (SettingsStorage::new(path), temp_dir)
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("settings.json");
+        (SettingsStorage::new(path), temp_dir)
     }
 
     #[test]
@@ -82,11 +89,32 @@ mod tests {
             model: "gpt-4".to_string(),
             theme: "dark".to_string(),
             default_export_path: Some("/tmp/export".to_string()),
+            generation_mode: "fast".to_string(),
         };
 
         storage.save(&settings).unwrap();
         let loaded = storage.load().unwrap();
 
         assert_eq!(loaded, settings);
+    }
+
+    #[test]
+    fn test_load_uses_default_generation_mode_for_legacy_settings_file() {
+        let (storage, _temp_dir) = create_storage();
+        fs::write(
+            &storage.path,
+            r#"{
+  "api_provider": "claude",
+  "api_key": "sk-test",
+  "model": "claude-sonnet-4-20250514",
+  "theme": "system",
+  "default_export_path": null
+}"#,
+        )
+        .unwrap();
+
+        let loaded = storage.load().unwrap();
+
+        assert_eq!(loaded.generation_mode, "quality");
     }
 }

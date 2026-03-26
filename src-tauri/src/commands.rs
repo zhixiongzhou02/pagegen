@@ -1,9 +1,9 @@
 use crate::ai_service::{AiService, ApiProvider};
+use crate::code_generator::generate_html_from_prompt;
 use crate::error::Result;
+use crate::exporter::{export_page_code, export_project};
 use crate::file_storage::FileStorage;
 use crate::models::{CreateProjectRequest, Project, UpdateProjectRequest};
-use crate::code_generator::generate_html_from_prompt;
-use crate::exporter::{export_page_code, export_project};
 use crate::settings::{AppSettings, SettingsStorage};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
@@ -11,6 +11,21 @@ use tauri::{AppHandle, Manager, State};
 // Application state
 pub struct AppState {
     pub storage: Mutex<FileStorage>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GenerationMode {
+    Fast,
+    Quality,
+}
+
+impl GenerationMode {
+    fn from_str(value: &str) -> Self {
+        match value.trim().to_lowercase().as_str() {
+            "fast" => Self::Fast,
+            _ => Self::Quality,
+        }
+    }
 }
 
 impl AppState {
@@ -29,13 +44,11 @@ impl AppState {
 
 // Project Commands
 #[tauri::command]
-pub fn create_project(
-    state: State<AppState>,
-    request: CreateProjectRequest,
-) -> Result<Project> {
-    let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
-        "Failed to lock storage".to_string()
-    ))?;
+pub fn create_project(state: State<AppState>, request: CreateProjectRequest) -> Result<Project> {
+    let storage = state
+        .storage
+        .lock()
+        .map_err(|_| crate::error::PageGenError::Io("Failed to lock storage".to_string()))?;
 
     let project = Project::new(request.name);
     storage.save_project(&project)?;
@@ -44,30 +57,30 @@ pub fn create_project(
 
 #[tauri::command]
 pub fn get_projects(state: State<AppState>) -> Result<Vec<Project>> {
-    let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
-        "Failed to lock storage".to_string()
-    ))?;
+    let storage = state
+        .storage
+        .lock()
+        .map_err(|_| crate::error::PageGenError::Io("Failed to lock storage".to_string()))?;
 
     storage.load_all_projects()
 }
 
 #[tauri::command]
 pub fn get_project(state: State<AppState>, id: String) -> Result<Project> {
-    let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
-        "Failed to lock storage".to_string()
-    ))?;
+    let storage = state
+        .storage
+        .lock()
+        .map_err(|_| crate::error::PageGenError::Io("Failed to lock storage".to_string()))?;
 
     storage.load_project(&id)
 }
 
 #[tauri::command]
-pub fn update_project(
-    state: State<AppState>,
-    request: UpdateProjectRequest,
-) -> Result<Project> {
-    let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
-        "Failed to lock storage".to_string()
-    ))?;
+pub fn update_project(state: State<AppState>, request: UpdateProjectRequest) -> Result<Project> {
+    let storage = state
+        .storage
+        .lock()
+        .map_err(|_| crate::error::PageGenError::Io("Failed to lock storage".to_string()))?;
 
     let mut project = storage.load_project(&request.id)?;
     project.name = request.name;
@@ -78,9 +91,10 @@ pub fn update_project(
 
 #[tauri::command]
 pub fn delete_project(state: State<AppState>, id: String) -> Result<()> {
-    let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
-        "Failed to lock storage".to_string()
-    ))?;
+    let storage = state
+        .storage
+        .lock()
+        .map_err(|_| crate::error::PageGenError::Io("Failed to lock storage".to_string()))?;
 
     storage.delete_project(&id)
 }
@@ -93,9 +107,10 @@ pub fn save_page_code(
     page_id: String,
     code: String,
 ) -> Result<()> {
-    let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
-        "Failed to lock storage".to_string()
-    ))?;
+    let storage = state
+        .storage
+        .lock()
+        .map_err(|_| crate::error::PageGenError::Io("Failed to lock storage".to_string()))?;
 
     let mut project = storage.load_project(&project_id)?;
 
@@ -116,15 +131,18 @@ pub async fn generate_page(
     project_id: String,
     page_id: String,
     prompt: String,
+    mode: String,
 ) -> Result<Project> {
     let mut project = {
-        let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
-            "Failed to lock storage".to_string()
-        ))?;
+        let storage = state
+            .storage
+            .lock()
+            .map_err(|_| crate::error::PageGenError::Io("Failed to lock storage".to_string()))?;
         storage.load_project(&project_id)?
     };
 
     let settings = load_settings(&app_handle)?;
+    let generation_mode = GenerationMode::from_str(&mode);
 
     if let Some(page) = project.pages.iter_mut().find(|p| p.id == page_id) {
         let existing_code = page.current_code.clone();
@@ -132,8 +150,13 @@ pub async fn generate_page(
             generate_html_from_prompt(&prompt, Some(&existing_code))
         } else {
             let provider = ApiProvider::try_from(settings.api_provider.as_str())?;
-            let service = AiService::new(settings.api_key, settings.model, provider);
-            service.generate_html(&prompt, Some(&existing_code)).await?
+            let model = select_generation_model(&settings, provider.clone(), generation_mode);
+            let context = match generation_mode {
+                GenerationMode::Fast => None,
+                GenerationMode::Quality => Some(existing_code.as_str()),
+            };
+            let service = AiService::new(settings.api_key, model, provider);
+            service.generate_html(&prompt, context).await?
         };
 
         page.current_code = generated_code.clone();
@@ -141,15 +164,28 @@ pub async fn generate_page(
 
         let version_id = uuid::Uuid::new_v4().to_string();
 
-        let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
-            "Failed to lock storage".to_string()
-        ))?;
+        let storage = state
+            .storage
+            .lock()
+            .map_err(|_| crate::error::PageGenError::Io("Failed to lock storage".to_string()))?;
         storage.save_project(&project)?;
         storage.save_version(&project_id, &version_id, &generated_code)?;
 
         Ok(project)
     } else {
         Err(crate::error::PageGenError::ProjectNotFound { id: page_id })
+    }
+}
+
+fn select_generation_model(
+    settings: &AppSettings,
+    provider: ApiProvider,
+    mode: GenerationMode,
+) -> String {
+    match (provider, mode) {
+        (ApiProvider::OpenAi, GenerationMode::Fast) => "gpt-4.1-mini".to_string(),
+        (ApiProvider::Claude, GenerationMode::Fast) => "claude-3-5-haiku-20241022".to_string(),
+        _ => settings.model.clone(),
     }
 }
 
@@ -161,9 +197,10 @@ pub fn save_version(
     version_id: String,
     code: String,
 ) -> Result<()> {
-    let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
-        "Failed to lock storage".to_string()
-    ))?;
+    let storage = state
+        .storage
+        .lock()
+        .map_err(|_| crate::error::PageGenError::Io("Failed to lock storage".to_string()))?;
 
     storage.save_version(&project_id, &version_id, &code)
 }
@@ -174,9 +211,10 @@ pub fn load_version(
     project_id: String,
     version_id: String,
 ) -> Result<String> {
-    let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
-        "Failed to lock storage".to_string()
-    ))?;
+    let storage = state
+        .storage
+        .lock()
+        .map_err(|_| crate::error::PageGenError::Io("Failed to lock storage".to_string()))?;
 
     storage.load_version(&project_id, &version_id)
 }
@@ -219,9 +257,10 @@ pub fn export_current_page(
     page_id: String,
     export_path: String,
 ) -> Result<String> {
-    let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
-        "Failed to lock storage".to_string()
-    ))?;
+    let storage = state
+        .storage
+        .lock()
+        .map_err(|_| crate::error::PageGenError::Io("Failed to lock storage".to_string()))?;
 
     let project = storage.load_project(&project_id)?;
     let page = project
@@ -239,9 +278,10 @@ pub fn export_project_files(
     project_id: String,
     export_dir: String,
 ) -> Result<String> {
-    let storage = state.storage.lock().map_err(|_| crate::error::PageGenError::Io(
-        "Failed to lock storage".to_string()
-    ))?;
+    let storage = state
+        .storage
+        .lock()
+        .map_err(|_| crate::error::PageGenError::Io("Failed to lock storage".to_string()))?;
 
     let project = storage.load_project(&project_id)?;
     export_project(&project, &export_dir)

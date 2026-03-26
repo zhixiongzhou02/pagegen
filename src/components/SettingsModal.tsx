@@ -126,6 +126,21 @@ export function SettingsModal({
           </label>
 
           <label className="block">
+            <span className="mb-2 block text-sm font-medium text-slate-700">默认生成模式</span>
+            <select
+              value={draft.generationMode}
+              onChange={(event) => setDraft((current) => ({
+                ...current,
+                generationMode: event.target.value as AppSettings['generationMode'],
+              }))}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="quality">高质量模式</option>
+              <option value="fast">快速模式</option>
+            </select>
+          </label>
+
+          <label className="block">
             <span className="mb-2 block text-sm font-medium text-slate-700">默认导出路径</span>
             <input
               type="text"

@@ -1,12 +1,12 @@
 import { create } from 'zustand'
-import { Project, Page } from '../types'
+import type { Project, Page, UserFacingError } from '../types'
 
 interface ProjectState {
   projects: Project[]
   currentProject: Project | null
   currentPage: Page | null
   isLoading: boolean
-  error: string | null
+  error: UserFacingError | null
 }
 
 interface ProjectActions {
@@ -17,7 +17,7 @@ interface ProjectActions {
   setCurrentProject: (project: Project | null) => void
   setCurrentPage: (page: Page | null) => void
   setLoading: (loading: boolean) => void
-  setError: (error: string | null) => void
+  setError: (error: UserFacingError | null) => void
 }
 
 export const useProjectStore = create<ProjectState & ProjectActions>((set) => ({

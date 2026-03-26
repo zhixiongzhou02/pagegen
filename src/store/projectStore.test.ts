@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useProjectStore } from './projectStore'
-import { Project } from '../types'
+import type { Project } from '../types'
 
 const mockProject = (id: string, name: string): Project => ({
   id,
@@ -84,8 +84,16 @@ describe('ProjectStore', () => {
   it('should set error state', () => {
     const { setError } = useProjectStore.getState()
 
-    setError('Something went wrong')
+    setError({
+      title: '操作失败',
+      detail: 'Something went wrong',
+      suggestion: '请稍后重试。',
+    })
 
-    expect(useProjectStore.getState().error).toBe('Something went wrong')
+    expect(useProjectStore.getState().error).toEqual({
+      title: '操作失败',
+      detail: 'Something went wrong',
+      suggestion: '请稍后重试。',
+    })
   })
 })
